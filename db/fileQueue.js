@@ -1,0 +1,44 @@
+var {db} = require('./mongo');
+
+/*
+columns:
+    video_id
+    status: notStarted / failed / success
+    create_time
+    update_time
+    file_name
+*/
+
+async function addVideo(videoId) {
+    var col = (await db).collection('file_queue');
+    await col.insertOne({
+        video_id: videoId,
+        status: 'notStarted',
+        create_time: new Date(),
+        update_time: new Date(),
+    });
+}
+
+async function getVideoToDownload() {
+    var col = (await db).collection('file_queue');
+    return await col.findOne({
+        status: 'notStarted'
+    });
+}
+
+async function updateStatus(videoId, status, more={}) {
+    var col = (await db).collection('file_queue');
+    return await col.updateOne({
+        video_id: videoId
+    }, {
+        $set: {
+            status: status,
+            update_time: new Date(),
+            ...more
+        }
+    });
+}
+
+module.exports.addVideo = addVideo;
+module.exports.getVideoToDownload = getVideoToDownload;
+module.exports.updateStatus = updateStatus;
