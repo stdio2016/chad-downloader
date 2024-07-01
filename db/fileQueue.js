@@ -39,6 +39,15 @@ async function updateStatus(videoId, status, more={}) {
     });
 }
 
+async function countVideosByStatus(){
+    var col = (await db).collection('file_queue');
+    return col.aggregate().group({
+        _id: '$status',
+        count: {$count: {}}
+    }).toArray();
+}
+
 module.exports.addVideo = addVideo;
 module.exports.getVideoToDownload = getVideoToDownload;
 module.exports.updateStatus = updateStatus;
+module.exports.countVideosByStatus = countVideosByStatus;

@@ -1,5 +1,29 @@
 extends layout
 
 block content
-  h1= title
-  p Welcome to #{title}
+  h1 CHAD dataset downloader
+  p This is a crawler to download 
+    a(href="https://github.com/amanteur/CHAD") CHAD dataset
+    |  using 
+    a(href="https://instances.hyper.lol/") multiple cobalt instances.
+    |  The dataset has about 36,000 YouTube songs.
+  h2 Download status
+  p Total: 
+    span= count.total
+    | , Downloaded: 
+    span= count.success
+    | , Failed: 
+    span= count.failed
+  h2 Instance status
+  table
+    tr
+      th API
+      th Status
+      th Success
+      th Failed
+    for inst in instances
+      tr
+        td 1
+        td 2
+        td 3
+        td 4
