@@ -2,11 +2,11 @@ var {db} = require('./mongo');
 
 /*
 columns:
-    video_id
+    video_id: string
     status: notStarted / failed / success
-    create_time
-    update_time
-    file_name
+    create_time: Date
+    update_time: Date
+    file_name: string
 */
 
 async function addVideo(videoId) {
