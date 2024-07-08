@@ -23,9 +23,15 @@ block content
       th Failed
       th Quota
     for inst in instances
+      if inst.status === 'up'
+        - status = '✅'
+      else if inst.status === 'deleted'
+        - status = '🗑️'
+      else
+        - status = '❌'
       tr
         td= inst.endpoint
-        td(title=inst.status)= inst.status === 'up' ? '✅' : (inst.status === 'deleted' ? '🗑️' : '❌')
+        td(title=inst.status)= status
         td= inst.success
         td= inst.fail
         td= inst.quota
