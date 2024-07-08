@@ -21,9 +21,11 @@ block content
       th Status
       th Success
       th Failed
+      th Quota
     for inst in instances
       tr
-        td 1
-        td 2
-        td 3
-        td 4
+        td= inst.endpoint
+        td(title=inst.status)= inst.status === 'up' ? '✅' : (inst.status === 'deleted' ? '🗑️' : '❌')
+        td= inst.success
+        td= inst.fail
+        td= inst.quota

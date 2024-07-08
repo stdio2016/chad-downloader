@@ -1,4 +1,14 @@
 var axios = require('axios');
+const { USER_AGENT, INSTANCE_API } = require('../constants');
+const { addOrUpdateInstance, listInstances, deleteInstance } = require('../db/instance');
+
+var ax = axios.create({
+    headers: {
+        Accept: 'application/json',
+        'User-Agent': USER_AGENT,
+    },
+    validateStatus: () => true,
+});
 
 async function updateInstanceList() {
     var req = await ax.get(INSTANCE_API);
