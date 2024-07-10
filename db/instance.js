@@ -3,6 +3,7 @@ var {db} = require('../db/mongo');
 /*
 columns:
     endpoint: string
+    protocol: string
     success: int
     fail: int
     quota: int
@@ -13,7 +14,7 @@ columns:
     raw
 */
 
-async function addOrUpdateInstance(endpoint, status, raw) {
+async function addOrUpdateInstance(endpoint, protocol, status, raw) {
     var col = (await db).collection('instance');
     await col.updateOne({
         endpoint: endpoint,
@@ -21,7 +22,8 @@ async function addOrUpdateInstance(endpoint, status, raw) {
         $set: {
             update_time: new Date(),
             raw: raw,
-            status: status
+            status: status,
+            protocol: protocol,
         },
         $setOnInsert: {
             success: 0,
@@ -58,11 +60,23 @@ async function listInstances() {
     return await col.find({}).toArray();
 }
 
+async function setInstanceQuota(endpoint, quota) {
+    var col = (await db).collection('instance');
+    await col.updateOne({
+        endpoint: endpoint,
+    }, {
+        $set: {
+            update_time: new Date(),
+            quota: quota
+        }
+    });
+}
+
 module.exports.addOrUpdateInstance = addOrUpdateInstance;
 module.exports.getInstance = getInstance;
 module.exports.deleteInstance = deleteInstance;
 module.exports.listInstances = listInstances;
-module.exports.refillInstanceQuota;
+module.exports.setInstanceQuota = setInstanceQuota;
 module.exports.useInstance;
 module.exports.incrInstanceSuccess;
 module.exports.incrInstanceFail;
