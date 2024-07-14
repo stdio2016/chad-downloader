@@ -72,11 +72,27 @@ async function setInstanceQuota(endpoint, quota) {
     });
 }
 
+async function useInstance(endpoint) {
+    var col = (await db).collection('instance');
+    return await col.updateOne({
+        endpoint: endpoint,
+        quota: {$gte: 1},
+    }, {
+        $set: {
+            update_time: new Date(),
+        },
+        $inc: {
+            quota: -1,
+            next_retry: new Date(),
+        }
+    });
+}
+
 module.exports.addOrUpdateInstance = addOrUpdateInstance;
 module.exports.getInstance = getInstance;
 module.exports.deleteInstance = deleteInstance;
 module.exports.listInstances = listInstances;
 module.exports.setInstanceQuota = setInstanceQuota;
-module.exports.useInstance;
+module.exports.useInstance = useInstance;
 module.exports.incrInstanceSuccess;
 module.exports.incrInstanceFail;
