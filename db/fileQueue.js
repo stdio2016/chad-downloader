@@ -3,7 +3,7 @@ var {db} = require('./mongo');
 /*
 columns:
     video_id: string
-    status: notStarted / failed / success
+    status: notStarted / failed / success / downloading
     create_time: Date
     update_time: Date
     file_name: string

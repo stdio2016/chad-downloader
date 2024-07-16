@@ -7,7 +7,7 @@ columns:
     success: int
     fail: int
     quota: int
-    status: up / down
+    status: up / down / deleted
     create_time: Date
     update_time: Date
     next_retry: Date
@@ -67,7 +67,7 @@ async function setInstanceQuota(endpoint, quota) {
     }, {
         $set: {
             update_time: new Date(),
-            quota: quota
+            quota: quota,
         }
     });
 }
@@ -80,10 +80,38 @@ async function useInstance(endpoint) {
     }, {
         $set: {
             update_time: new Date(),
+            next_retry: new Date(),
         },
         $inc: {
             quota: -1,
-            next_retry: new Date(),
+        }
+    });
+}
+
+async function incrInstanceSuccess(endpoint) {
+    var col = (await db).collection('instance');
+    return await col.updateOne({
+        endpoint: endpoint,
+    }, {
+        $set: {
+            update_time: new Date(),
+        },
+        $inc: {
+            success: 1,
+        }
+    });
+}
+
+async function incrInstanceFail(endpoint) {
+    var col = (await db).collection('instance');
+    return await col.updateOne({
+        endpoint: endpoint,
+    }, {
+        $set: {
+            update_time: new Date(),
+        },
+        $inc: {
+            fail: 1,
         }
     });
 }
@@ -94,5 +122,5 @@ module.exports.deleteInstance = deleteInstance;
 module.exports.listInstances = listInstances;
 module.exports.setInstanceQuota = setInstanceQuota;
 module.exports.useInstance = useInstance;
-module.exports.incrInstanceSuccess;
-module.exports.incrInstanceFail;
+module.exports.incrInstanceSuccess = incrInstanceSuccess;
+module.exports.incrInstanceFail = incrInstanceFail;

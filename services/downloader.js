@@ -1,7 +1,11 @@
 var axios = require('axios').default;
+const { AxiosError } = require('axios');
 const { USER_AGENT, INSTANCE_API } = require('../constants');
-const { addOrUpdateInstance, listInstances, deleteInstance, setInstanceQuota } = require('../db/instance');
+const { addOrUpdateInstance, listInstances, deleteInstance, setInstanceQuota, useInstance, incrInstanceSuccess, incrInstanceFail } = require('../db/instance');
 const { insertLog } = require('../db/log');
+const fs = require('fs');
+var contentDisposition = require('content-disposition');
+const { getVideoToDownload, updateStatus } = require('../db/fileQueue');
 
 var ax = axios.create({
     headers: {
@@ -53,7 +57,8 @@ async function randomInstance() {
     var canInst = [];
     var prob = [];
     var probsum = 0;
-    var now;
+    var now = new Date();
+    var hasQuota = false;
     for (var inst of insts) {
         var p = 0;
         if (inst.status === 'up' && inst.quota > 0) {
@@ -62,6 +67,7 @@ async function randomInstance() {
                 p = 0;
             }
             if (p > 0) {
+                hasQuota = true;
                 canInst.push(inst);
                 prob.push(p);
                 probsum += p;
@@ -69,7 +75,7 @@ async function randomInstance() {
         }
     }
     if (canInst.length < 1) {
-        return null;
+        return { endpoint: null, hasQuota: hasQuota };
     }
     var r = Math.random() * probsum;
     var i;
@@ -82,6 +88,205 @@ async function randomInstance() {
     return canInst[i];
 }
 
+/**
+ * 
+ * @param {string} videoId 
+ * @param {string} serverFilename 
+ */
+function genFilename(videoId, serverFilename) {
+    var ext = ".mp4";
+    var validExts = [".mp3", ".ogg", ".wav", ".opus", ".mp4", ".webm"];
+    var pos = serverFilename.lastIndexOf('.');
+    if (pos !== -1) {
+        ext = serverFilename.slice(pos);
+        if (!validExts.includes(ext)) {
+            ext = ".mp4";
+        }
+    }
+    return videoId + ext;
+}
+
+async function download(instance, videoId, vCodec) {
+    var baseURL = instance.protocol + '://' + instance.endpoint;
+    var endpoint = instance.endpoint;
+    var url;
+    try {
+        console.log('%s start', videoId);
+        await insertLog(instance.endpoint, videoId, 'started');
+        var response = await ax.post('/api/json', {
+            url: 'https://youtube.com/watch?v=' + videoId,
+            aFormat: 'best',
+            isAudioOnly: true,
+            filenamePattern: 'basic'
+        }, {
+            baseURL: baseURL,
+            headers: {
+                Accept: 'application/json',
+            }
+        });
+        var result = response.data;
+        console.log(result);
+        await insertLog(endpoint, videoId, '/api/json response', result);
+
+        var text = '' + result.text;
+        switch (result.status) {
+            case 'stream':
+            case 'redirect':
+                url = '' + result.url;
+                if ((url.startsWith('https://api.cobalt.tools/') || url.startsWith('https://co.wuk.sh/')) && endpoint !== 'api.cobalt.tools') {
+                    console.log('instance %s misconfigured', endpoint);
+                    return { status: 'instanceBroken' };
+                }
+                break;
+            case 'rate-limit':
+                console.log('%s api rate limit', videoId);
+                await insertLog(endpoint, videoId, '/api/json rate limit', result);
+                return { status: 'rateLimit', text };
+            case 'error':
+                console.log('%s api error %s', videoId, text);
+                if (text.includes('try another codec')) {
+                    await insertLog(endpoint, videoId, '/api/json format not found', result);
+                    return { status: 'tryAnotherCodec' };
+                }
+                await insertLog(endpoint, videoId, '/api/json api error', result);
+                return { status: 'failed', text };
+            default:
+                throw new Error('Unknown status: ' + result.status);
+        }
+    } catch (err) {
+        console.error(err);
+        if (err instanceof AxiosError) {
+            await insertLog(endpoint, videoId, '/api/json network error', {
+                message: err.message
+            });
+        } else {
+            await insertLog(endpoint, videoId, 'program error during /api/json', {
+                name: err.name,
+                message: err.message,
+                stack: err.stack,
+            });
+            return { status: 'programError' };
+        }
+        return { status: 'networkFailed' };
+    }
+
+    try {
+        var streamResp = await ax.get(url, {
+            responseType: 'stream',
+            validateStatus: s => s < 400,
+        });
+        var serverFilename = '';
+        if (streamResp.headers['content-disposition']) {
+            var disposition = contentDisposition.parse(streamResp.headers['content-disposition']);
+            serverFilename = disposition.parameters.filename + '';
+            console.log(serverFilename);
+        }
+        var filename = genFilename(videoId, serverFilename);
+        var fout = fs.createWriteStream(filename);
+        var dataIn = streamResp.data;
+        await new Promise((resolve, reject) => {
+            dataIn.on('error', reject);
+            dataIn.pipe(fout)
+                .on('error', reject)
+                .on('finish', resolve);
+        });
+        await insertLog(endpoint, videoId, 'download success', {
+            filename: filename,
+            serverFilename: serverFilename
+        });
+        console.log('%s success', videoId);
+        return { status: 'success', filename: filename, serverFilename: serverFilename };
+    } catch (err) {
+        if (err instanceof AxiosError) {
+            await insertLog(endpoint, videoId, '/api/stream network error', {
+                message: err.message,
+                status: err.status,
+            });
+            if (err.code === 'ENOTFOUND') {
+                console.log('instance %s returned url that we cannot connect', endpoint);
+                return { status: 'instanceBroken' };
+            }
+            console.log('network failed');
+            return { status: 'networkFailed' };
+        } else {
+            await insertLog(endpoint, videoId, 'program error during /api/stream', {
+                name: err.name,
+                message: err.message,
+                stack: err.stack,
+            });
+            console.error(err);
+            return { status: 'programError' };
+        }
+    }
+}
+
+function waitRandomTime() {
+    return new Promise(resolve => setTimeout(resolve, Math.random() * 30000 + 1000));
+}
+
+async function downloadLoop(count) {
+    for (var i = 0; i < count; i++) {
+        var videoObj = await getVideoToDownload();
+        if (videoObj === null) {
+            break;
+        }
+        var videoId = videoObj.video_id;
+        var instance = await randomInstance();
+        if (!instance.endpoint) console.log('all instance rate limit exceeded...');
+        while (!instance.endpoint) {
+            if (instance.hasQuota) {
+                await waitRandomTime();
+                instance = await randomInstance();
+            } else {
+                return { status: 'nextDay' };
+            }
+        }
+        var endpoint = instance.endpoint;
+        await useInstance(endpoint);
+        var startTime = new Date();
+        await updateStatus(videoId, 'downloading', { startTime: startTime });
+        var result = await download(instance, videoId);
+        switch (result.status) {
+            case 'success':
+                await updateStatus(videoId, 'success', {
+                    filename: result.filename,
+                    serverFilename: result.serverFilename
+                });
+                await incrInstanceSuccess(endpoint);
+                break;
+            case 'failed':
+                await updateStatus(videoId, 'failed', { text: result.text });
+                await incrInstanceFail(endpoint);
+                break;
+            case 'networkFailed':
+                await updateStatus(videoId, 'notStarted', { restart: 'networkFailed' });
+                await incrInstanceFail(endpoint);
+                break;
+            case 'rateLimit':
+                await updateStatus(videoId, 'notStarted', { restart: 'rateLimit' });
+                await incrInstanceFail(endpoint);
+                break;
+            case 'instanceBroken':
+                await updateStatus(videoId, 'notStarted', { restart: 'instanceBroken' });
+                await setInstanceQuota(endpoint, 0);
+                await incrInstanceFail(endpoint);
+                break;
+            case 'tryAnotherCodec':
+                await updateStatus(videoId, 'notStarted', { vCodec: 'mp4' });
+                await incrInstanceFail(endpoint);
+                break;
+            default:
+                await updateStatus(videoId, 'failed', { text: result.text });
+                await incrInstanceFail(endpoint);
+                throw new Error('Unknown status: ' + result.status);
+        }
+        await waitRandomTime();
+    }
+    return { status: 'finish' };
+}
+
 module.exports.updateInstanceList = updateInstanceList;
 module.exports.updateInstanceQuota = updateInstanceQuota;
 module.exports.randomInstance = randomInstance;
+module.exports.download = download;
+module.exports.downloadLoop = downloadLoop;
