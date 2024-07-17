@@ -6,6 +6,7 @@ const { insertLog } = require('../db/log');
 const fs = require('fs');
 var contentDisposition = require('content-disposition');
 const { getVideoToDownload, updateStatus } = require('../db/fileQueue');
+var URL = require('url');
 
 var ax = axios.create({
     headers: {
@@ -95,7 +96,7 @@ async function randomInstance() {
  */
 function genFilename(videoId, serverFilename) {
     var ext = ".mp4";
-    var validExts = [".mp3", ".ogg", ".wav", ".opus", ".mp4", ".webm"];
+    var validExts = [".mp3", ".ogg", ".wav", ".opus", ".mp4", ".webm", ".m4a", ".gif"];
     var pos = serverFilename.lastIndexOf('.');
     if (pos !== -1) {
         ext = serverFilename.slice(pos);
@@ -104,6 +105,21 @@ function genFilename(videoId, serverFilename) {
         }
     }
     return videoId + ext;
+}
+
+function tryFixStreamUrl(url, instance) {
+    if (instance.endpoint === 'api.cobalt.tools') {
+        return url;
+    }
+    var wrongHosts = ['https://api.cobalt.tools/', 'https://co.wuk.sh/']
+    for (var host of wrongHosts) {
+        if (url.startsWith(host)) {
+            console.log('instance %s misconfigured', instance.endpoint);
+            var baseURL = instance.protocol + '://' + instance.endpoint;
+            return baseURL + '/' + url.slice(host.length);
+        }
+    }
+    return url;
 }
 
 async function download(instance, videoId, vCodec) {
@@ -133,10 +149,6 @@ async function download(instance, videoId, vCodec) {
             case 'stream':
             case 'redirect':
                 url = '' + result.url;
-                if ((url.startsWith('https://api.cobalt.tools/') || url.startsWith('https://co.wuk.sh/')) && endpoint !== 'api.cobalt.tools') {
-                    console.log('instance %s misconfigured', endpoint);
-                    return { status: 'instanceBroken' };
-                }
                 break;
             case 'rate-limit':
                 console.log('%s api rate limit', videoId);
@@ -151,7 +163,9 @@ async function download(instance, videoId, vCodec) {
                 await insertLog(endpoint, videoId, '/api/json api error', result);
                 return { status: 'failed', text };
             default:
-                throw new Error('Unknown status: ' + result.status);
+                console.log('instance %s unknown response');
+                await insertLog(endpoint, videoId, '/api/json unknown response', result);
+                return { status: 'instanceBroken' };
         }
     } catch (err) {
         console.error(err);
@@ -169,9 +183,13 @@ async function download(instance, videoId, vCodec) {
         }
         return { status: 'networkFailed' };
     }
+    return await downloadStreamPhase(instance, endpoint, videoId, url);
+}
 
+async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
     try {
-        var streamResp = await ax.get(url, {
+        var fixUrl = tryFixStreamUrl(url, instance);
+        var streamResp = await ax.get(fixUrl, {
             responseType: 'stream',
             validateStatus: s => s < 400,
         });
@@ -204,6 +222,14 @@ async function download(instance, videoId, vCodec) {
             });
             if (err.code === 'ENOTFOUND') {
                 console.log('instance %s returned url that we cannot connect', endpoint);
+                if (!retried) {
+                    fout.close();
+                    fout = null;
+                    var parsedUrl = new URL.URL(url);
+                    parsedUrl.protocol = instance.protocol;
+                    parsedUrl.host = endpoint;
+                    return await downloadStreamPhase(instance, endpoint, videoId, parsedUrl.href, true);
+                }
                 return { status: 'instanceBroken' };
             }
             console.log('network failed');
@@ -217,11 +243,32 @@ async function download(instance, videoId, vCodec) {
             console.error(err);
             return { status: 'programError' };
         }
+    } finally {
+        if (fout) {
+            fout.close();
+        }
     }
 }
 
 function waitRandomTime() {
-    return new Promise(resolve => setTimeout(resolve, Math.random() * 30000 + 1000));
+    return new Promise(resolve => setTimeout(resolve, Math.random() * 30000 + 5000));
+}
+
+function fileSizeCheck(filename) {
+    try {
+        var fts = fs.statSync(filename);
+        return fts.size > 1000;
+    } catch (err) {
+        return true;
+    }
+}
+
+function safelyRemoveFile(filename) {
+    try {
+        fs.unlinkSync(result.filename);
+    } catch (err) {
+
+    }
 }
 
 async function downloadLoop(count) {
@@ -248,6 +295,17 @@ async function downloadLoop(count) {
         var result = await download(instance, videoId);
         switch (result.status) {
             case 'success':
+                if (!fileSizeCheck(result.filename)) {
+                    console.log('file is too small!!!');
+                    safelyRemoveFile(result.filename);
+                    await updateStatus(videoId, 'notStarted', {
+                        filename: result.filename,
+                        serverFilename: result.serverFilename,
+                        restart: 'fileTooSmall'
+                    });
+                    await incrInstanceFail(endpoint);
+                    break;
+                }
                 await updateStatus(videoId, 'success', {
                     filename: result.filename,
                     serverFilename: result.serverFilename
