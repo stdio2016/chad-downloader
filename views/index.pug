@@ -12,8 +12,10 @@ block content
     span= count.total
     | , Downloaded: 
     span= count.success
-    | , Failed: 
+    | , Not available: 
     span= count.failed
+    | , Failed: 
+    span= count.restart
   h2 Instance status
   table
     tr
@@ -29,6 +31,8 @@ block content
         - status = '🗑️'
       else
         - status = '❌'
+      if inst.banned
+        - status = '⛔'
       tr
         td= inst.endpoint
         td(title=inst.status)= status

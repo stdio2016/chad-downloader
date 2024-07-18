@@ -1,6 +1,6 @@
 var express = require('express');
 var router = express.Router();
-var {countVideosByStatus} = require('../db/fileQueue');
+var {countVideosByStatus, countRestart} = require('../db/fileQueue');
 const { listInstances } = require('../db/instance');
 
 /* GET home page. */
@@ -12,6 +12,7 @@ router.get('/', async function(req, res, next) {
         count[st._id] = st.count;
         count.total += st.count;
     }
+    count.restart = await countRestart();
     res.render('index', { instances, count });
 });
 

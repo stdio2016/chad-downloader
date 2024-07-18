@@ -47,7 +47,16 @@ async function countVideosByStatus(){
     }).toArray();
 }
 
+async function countRestart(){
+    var col = (await db).collection('file_queue');
+    return col.countDocuments ({
+        status: 'notStarted',
+        startTime: { $not: { $eq: null } },
+    });
+}
+
 module.exports.addVideo = addVideo;
 module.exports.getVideoToDownload = getVideoToDownload;
 module.exports.updateStatus = updateStatus;
 module.exports.countVideosByStatus = countVideosByStatus;
+module.exports.countRestart = countRestart;

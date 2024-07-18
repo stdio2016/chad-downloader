@@ -62,7 +62,7 @@ async function randomInstance() {
     var hasQuota = false;
     for (var inst of insts) {
         var p = 0;
-        if (inst.status === 'up' && inst.quota > 0) {
+        if (inst.status === 'up' && !inst.banned && inst.quota > 0) {
             p = inst.quota;
             if (inst.next_retry && now - inst.next_retry < retry_delay) {
                 p = 0;
@@ -151,19 +151,27 @@ async function download(instance, videoId, vCodec) {
                 url = '' + result.url;
                 break;
             case 'rate-limit':
-                console.log('%s api rate limit', videoId);
+                console.log('%s %s api rate limit', videoId, endpoint);
                 await insertLog(endpoint, videoId, '/api/json rate limit', result);
                 return { status: 'rateLimit', text };
             case 'error':
-                console.log('%s api error %s', videoId, text);
+                console.log('%s %s api error %s', videoId, endpoint, text);
                 if (text.includes('try another codec')) {
                     await insertLog(endpoint, videoId, '/api/json format not found', result);
                     return { status: 'tryAnotherCodec' };
                 }
+                if (text.includes('stop scraping')) {
+                    await insertLog(endpoint, videoId, '/api/json instance banned by youtube', result);
+                    return { status: 'instanceBroken' };
+                }
+                if (text.includes('rate limited')) {
+                    await insertLog(endpoint, videoId, '/api/json rate limit by youtube', result);
+                    return { status: 'rateLimit' };
+                }
                 await insertLog(endpoint, videoId, '/api/json api error', result);
                 return { status: 'failed', text };
             default:
-                console.log('instance %s unknown response');
+                console.log('instance %s unknown response', endpoint);
                 await insertLog(endpoint, videoId, '/api/json unknown response', result);
                 return { status: 'instanceBroken' };
         }
@@ -251,7 +259,8 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
 }
 
 function waitRandomTime() {
-    return new Promise(resolve => setTimeout(resolve, Math.random() * 30000 + 5000));
+    var rndTime = Math.random() * 30000 + 10000;
+    return new Promise(resolve => setTimeout(resolve, rndTime));
 }
 
 function fileSizeCheck(filename) {
@@ -265,7 +274,7 @@ function fileSizeCheck(filename) {
 
 function safelyRemoveFile(filename) {
     try {
-        fs.unlinkSync(result.filename);
+        fs.unlinkSync(filename);
     } catch (err) {
 
     }
