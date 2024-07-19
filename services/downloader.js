@@ -168,6 +168,10 @@ async function download(instance, videoId, vCodec) {
                     await insertLog(endpoint, videoId, '/api/json rate limit by youtube', result);
                     return { status: 'rateLimit' };
                 }
+                if (text.includes("couldn't connect to the service api") || text.includes('servers are down')) {
+                    await insertLog(endpoint, videoId, '/api/json service failure', result);
+                    return { status: 'networkFailed' };
+                }
                 await insertLog(endpoint, videoId, '/api/json api error', result);
                 return { status: 'failed', text };
             default:
@@ -231,8 +235,10 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
             if (err.code === 'ENOTFOUND') {
                 console.log('instance %s returned url that we cannot connect', endpoint);
                 if (!retried) {
-                    fout.close();
-                    fout = null;
+                    if (fout) {
+                        fout.close();
+                        fout = null;
+                    }
                     var parsedUrl = new URL.URL(url);
                     parsedUrl.protocol = instance.protocol;
                     parsedUrl.host = endpoint;
@@ -307,6 +313,7 @@ async function downloadLoop(count) {
                 if (!fileSizeCheck(result.filename)) {
                     console.log('file is too small!!!');
                     safelyRemoveFile(result.filename);
+                    await insertLog(endpoint, videoId, 'file is too small', {});
                     await updateStatus(videoId, 'notStarted', {
                         filename: result.filename,
                         serverFilename: result.serverFilename,
