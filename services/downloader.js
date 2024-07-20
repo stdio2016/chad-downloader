@@ -111,7 +111,7 @@ function tryFixStreamUrl(url, instance) {
     if (instance.endpoint === 'api.cobalt.tools') {
         return url;
     }
-    var wrongHosts = ['https://api.cobalt.tools/', 'https://co.wuk.sh/']
+    var wrongHosts = ['https://api.cobalt.tools/', 'https://co.wuk.sh/', 'http://localhost:9000/']
     for (var host of wrongHosts) {
         if (url.startsWith(host)) {
             console.log('instance %s misconfigured', instance.endpoint);
