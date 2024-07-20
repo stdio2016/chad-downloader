@@ -32,7 +32,7 @@ block content
       else
         - status = '❌'
       if inst.banned
-        - status = '⛔'
+        - status += '⛔'
       tr
         td= inst.endpoint
         td(title=inst.status)= status
