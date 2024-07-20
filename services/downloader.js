@@ -7,6 +7,7 @@ const fs = require('fs');
 var contentDisposition = require('content-disposition');
 const { getVideoToDownload, updateStatus } = require('../db/fileQueue');
 var URL = require('url');
+const path = require('path');
 
 var ax = axios.create({
     headers: {
@@ -336,6 +337,7 @@ async function downloadLoop(count) {
                     serverFilename: result.serverFilename
                 });
                 await incrInstanceSuccess(endpoint);
+                fs.renameSync(result.filename, path.join('downloaded', result.filename));
                 break;
             case 'failed':
                 await updateStatus(videoId, 'failed', { text: result.text });
