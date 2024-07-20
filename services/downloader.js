@@ -214,12 +214,21 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
         var filename = genFilename(videoId, serverFilename);
         var fout = fs.createWriteStream(filename);
         var dataIn = streamResp.data;
-        await new Promise((resolve, reject) => {
-            dataIn.on('error', reject);
-            dataIn.pipe(fout)
-                .on('error', reject)
-                .on('finish', resolve);
-        });
+        try {
+            await new Promise((resolve, reject) => {
+                dataIn.on('error', reject);
+                dataIn.pipe(fout)
+                    .on('error', reject)
+                    .on('finish', resolve);
+            });
+        } catch (err) {
+            await insertLog(endpoint, videoId, '/api/stream network error', {
+                message: err.message,
+                status: err.status,
+            });
+            console.log('network failed');
+            return { status: 'networkFailed' };
+        }
         await insertLog(endpoint, videoId, 'download success', {
             filename: filename,
             serverFilename: serverFilename
