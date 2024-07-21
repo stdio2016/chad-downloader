@@ -227,7 +227,7 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
                 message: err.message,
                 status: err.status,
             });
-            console.log('network failed');
+            console.log('%s network failed', endpoint);
             return { status: 'networkFailed' };
         }
         await insertLog(endpoint, videoId, 'download success', {
@@ -256,7 +256,7 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
                 }
                 return { status: 'instanceBroken' };
             }
-            console.log('network failed');
+            console.log('%s network failed', endpoint);
             return { status: 'networkFailed' };
         } else {
             await insertLog(endpoint, videoId, 'program error during /api/stream', {
@@ -330,6 +330,9 @@ async function downloadLoop(count) {
                         restart: 'fileTooSmall'
                     });
                     await incrInstanceFail(endpoint);
+                    // it seems that instances never recover from empty file error
+                    // maybe they are banned by youtube
+                    await setInstanceQuota(endpoint, 0);
                     break;
                 }
                 await updateStatus(videoId, 'success', {
