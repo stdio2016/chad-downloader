@@ -24,6 +24,7 @@ block content
       th Success
       th Failed
       th Quota
+      th Why banned
     for inst in instances
       if inst.status === 'up'
         - status = '✅'
@@ -39,3 +40,4 @@ block content
         td= inst.success
         td= inst.fail
         td= inst.quota
+        td= inst.banned
