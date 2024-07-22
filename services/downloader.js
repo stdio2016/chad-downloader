@@ -65,11 +65,13 @@ async function randomInstance() {
         var p = 0;
         if (inst.status === 'up' && !inst.banned && inst.quota > 0) {
             p = inst.quota;
+            if (inst.quota > 0) {
+                hasQuota = true;
+            }
             if (inst.next_retry && now - inst.next_retry < retry_delay) {
                 p = 0;
             }
             if (p > 0) {
-                hasQuota = true;
                 canInst.push(inst);
                 prob.push(p);
                 probsum += p;
