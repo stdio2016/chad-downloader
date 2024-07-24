@@ -290,14 +290,6 @@ function fileSizeCheck(filename) {
     }
 }
 
-function safelyRemoveFile(filename) {
-    try {
-        fs.unlinkSync(filename);
-    } catch (err) {
-
-    }
-}
-
 async function downloadLoop(count) {
     for (var i = 0; i < count; i++) {
         var videoObj = await getVideoToDownload();
@@ -306,7 +298,7 @@ async function downloadLoop(count) {
         }
         var videoId = videoObj.video_id;
         var instance = await randomInstance();
-        if (!instance.endpoint) console.log('all instance rate limit exceeded...');
+        if (!instance.endpoint) console.log("run out of today's quota...");
         while (!instance.endpoint) {
             if (instance.hasQuota) {
                 await waitRandomTime();
@@ -324,7 +316,6 @@ async function downloadLoop(count) {
             case 'success':
                 if (!fileSizeCheck(result.filename)) {
                     console.log('file is too small!!!');
-                    safelyRemoveFile(result.filename);
                     await insertLog(endpoint, videoId, 'file is too small', {});
                     await updateStatus(videoId, 'notStarted', {
                         filename: result.filename,
