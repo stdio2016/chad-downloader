@@ -1,6 +1,6 @@
 var axios = require('axios').default;
 const { AxiosError } = require('axios');
-const { USER_AGENT, INSTANCE_API } = require('../constants');
+const { USER_AGENT, INSTANCE_API, DAILY_QUOTA, RETRY_AFTER_MS, WAIT_MAX_MS, WAIT_MIN_MS } = require('../constants');
 const { addOrUpdateInstance, listInstances, deleteInstance, setInstanceQuota, useInstance, incrInstanceSuccess, incrInstanceFail } = require('../db/instance');
 const { insertLog } = require('../db/log');
 const fs = require('fs');
@@ -48,12 +48,11 @@ async function updateInstanceList() {
 async function updateInstanceQuota() {
     var current = await listInstances();
     for (var instance of current) {
-        await setInstanceQuota(instance.endpoint, 10);
+        await setInstanceQuota(instance.endpoint, DAILY_QUOTA);
     }
     await insertLog('instance', null, 'quota updated', null);
 }
 
-var retry_delay = 5 * 60 * 1000;
 async function randomInstance() {
     var insts = await listInstances();
     var canInst = [];
@@ -68,7 +67,7 @@ async function randomInstance() {
             if (inst.quota > 0) {
                 hasQuota = true;
             }
-            if (inst.next_retry && now - inst.next_retry < retry_delay) {
+            if (inst.next_retry && now - inst.next_retry < RETRY_AFTER_MS) {
                 p = 0;
             }
             if (p > 0) {
@@ -277,14 +276,14 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
 }
 
 function waitRandomTime() {
-    var rndTime = Math.random() * 30000 + 10000;
+    var rndTime = Math.random() * (WAIT_MAX_MS - WAIT_MIN_MS) + WAIT_MIN_MS;
     return new Promise(resolve => setTimeout(resolve, rndTime));
 }
 
 function fileSizeCheck(filename) {
     try {
         var fts = fs.statSync(filename);
-        return fts.size > 1000;
+        return fts.size > 0;
     } catch (err) {
         return true;
     }
