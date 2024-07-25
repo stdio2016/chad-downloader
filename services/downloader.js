@@ -297,12 +297,13 @@ async function downloadLoop(count) {
         }
         var videoId = videoObj.video_id;
         var instance = await randomInstance();
-        if (!instance.endpoint) console.log("run out of today's quota...");
+        if (!instance.endpoint) console.log("all instance rate limit exceeded...");
         while (!instance.endpoint) {
             if (instance.hasQuota) {
                 await waitRandomTime();
                 instance = await randomInstance();
             } else {
+                console.log("run out of today's quota...");
                 return { status: 'nextDay' };
             }
         }
