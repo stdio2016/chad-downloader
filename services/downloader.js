@@ -325,7 +325,7 @@ async function downloadLoop(count) {
                     await incrInstanceFail(endpoint);
                     // it seems that instances never recover from empty file error
                     // maybe they are banned by youtube
-                    await setInstanceQuota(endpoint, 0);
+                    await setInstanceQuota(endpoint, -999);
                     break;
                 }
                 await updateStatus(videoId, 'success', {
