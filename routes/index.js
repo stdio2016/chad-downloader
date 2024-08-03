@@ -13,7 +13,7 @@ router.get('/', async function(req, res, next) {
         count.total += st.count;
     }
     count.restart = await countRestart();
-    res.render('index', { instances, count });
+    res.render('index', { title: 'CHAD downloader', instances, count });
 });
 
 module.exports = router;
