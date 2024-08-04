@@ -20,13 +20,14 @@ block content
     span= count.restart
   h2 Instance status
   table
-    tr
-      th API
-      th Status
-      th Success
-      th Failed
-      th Quota
-      th Why banned
+    thead
+      tr
+        th(onclick='sort(event)') API
+        th(onclick='sort(event)') Status
+        th(onclick='sort(event,"number")') Success
+        th(onclick='sort(event,"number")') Failed
+        th(onclick='sort(event,"number")') Quota
+        th(onclick='sort(event)') Why banned
     for inst in instances
       if inst.status === 'up'
         - status = '✅'
@@ -43,3 +44,30 @@ block content
         td= inst.fail
         td= inst.quota
         td= inst.banned
+  script.
+    function sort(event, type) {
+      // not very efficient, but it works
+      var col = event.target;
+      var table = col.parentNode.parentNode.parentNode;
+      var rows = table.tBodies[0].rows;
+      var thead = col.parentNode;
+      var whichCol = 0;
+      for (var i = 0; i < thead.cells.length; i++) {
+        if (thead.cells[i] === event.target) {
+          whichCol = i;
+          break;
+        }
+      }
+      var arr = [];
+      for (var i = 0; i < rows.length; i++) {
+        arr.push(rows[i]);
+      }
+      if (type === 'number') {
+        arr.sort((a, b) => a.cells[whichCol].textContent - b.cells[whichCol].textContent);
+      } else {
+        arr.sort((a, b) => a.cells[whichCol].textContent.localeCompare(b.cells[whichCol].textContent));
+      }
+      for (var i = 0; i < arr.length; i++) {
+        table.tBodies[0].appendChild(arr[i]);
+      }
+    }
