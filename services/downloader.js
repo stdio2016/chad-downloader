@@ -133,8 +133,7 @@ async function download(instance, videoId, vCodec) {
         await insertLog(instance.endpoint, videoId, 'started');
         var response = await ax.post('/api/json', {
             url: 'https://youtube.com/watch?v=' + videoId,
-            aFormat: 'best',
-            isAudioOnly: true,
+            vCodec: 'mp4',
             filenamePattern: 'basic'
         }, {
             baseURL: baseURL,
@@ -325,7 +324,9 @@ async function downloadLoop(count) {
                     await incrInstanceFail(endpoint);
                     // it seems that instances never recover from empty file error
                     // maybe they are banned by youtube
-                    await setInstanceQuota(endpoint, -999);
+                    if (!instance.no_ban_on_empty_response) {
+                        await setInstanceQuota(endpoint, -999);
+                    }
                     break;
                 }
                 await updateStatus(videoId, 'success', {
