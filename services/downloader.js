@@ -173,6 +173,10 @@ async function download(instance, videoId, vCodec) {
                     await insertLog(endpoint, videoId, '/api/json service failure', result);
                     return { status: 'networkFailed' };
                 }
+                if (text.includes('something went wrong when i tried getting info about your link')) {
+                    await insertLog(endpoint, videoId, '/api/json service failure', result);
+                    return { status: 'networkFailed' };
+                }
                 await insertLog(endpoint, videoId, '/api/json api error', result);
                 return { status: 'failed', text };
             default:
