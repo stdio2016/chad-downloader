@@ -218,7 +218,7 @@ async function downloadStreamPhase(instance, endpoint, videoId, url, retried) {
             console.log(serverFilename);
         }
         var filename = genFilename(videoId, serverFilename);
-        var fout = fs.createWriteStream(filename);
+        var fout = fs.createWriteStream(path.join('temp', filename));
         var dataIn = streamResp.data;
         try {
             await new Promise((resolve, reject) => {
@@ -319,7 +319,7 @@ async function downloadLoop(count) {
         var result = await download(instance, videoId);
         switch (result.status) {
             case 'success':
-                if (!fileSizeCheck(result.filename)) {
+                if (!fileSizeCheck(path.join('temp', result.filename))) {
                     console.log('file is too small!!!');
                     await insertLog(endpoint, videoId, 'file is too small', {});
                     await updateStatus(videoId, 'notStarted', {
@@ -340,7 +340,7 @@ async function downloadLoop(count) {
                     serverFilename: result.serverFilename
                 });
                 await incrInstanceSuccess(endpoint);
-                fs.renameSync(result.filename, path.join('downloaded', result.filename));
+                fs.renameSync(path.join('temp', result.filename), path.join('downloaded', result.filename));
                 break;
             case 'failed':
                 await updateStatus(videoId, 'failed', { text: result.text });
