@@ -5,3 +5,4 @@ module.exports.RETRY_AFTER_MIN_MS = 15 * 60 * 1000;
 module.exports.RETRY_AFTER_MAX_MS = 30 * 60 * 1000;
 module.exports.WAIT_MIN_MS = 20000;
 module.exports.WAIT_MAX_MS = 100000;
+module.exports.MAIN_INSTANCE = 'api.cobalt.tools';

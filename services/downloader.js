@@ -1,6 +1,6 @@
 var axios = require('axios').default;
 const { AxiosError } = require('axios');
-const { USER_AGENT, INSTANCE_API, DAILY_QUOTA, RETRY_AFTER_MIN_MS, RETRY_AFTER_MAX_MS, WAIT_MAX_MS, WAIT_MIN_MS } = require('../constants');
+const { USER_AGENT, INSTANCE_API, DAILY_QUOTA, RETRY_AFTER_MIN_MS, RETRY_AFTER_MAX_MS, WAIT_MAX_MS, WAIT_MIN_MS, MAIN_INSTANCE } = require('../constants');
 const { addOrUpdateInstance, listInstances, deleteInstance, setInstanceQuota, useInstance, incrInstanceSuccess, incrInstanceFail } = require('../db/instance');
 const { insertLog } = require('../db/log');
 const fs = require('fs');
@@ -62,7 +62,8 @@ async function randomInstance() {
     var hasQuota = false;
     for (var inst of insts) {
         var p = 0;
-        if (inst.status === 'up' && !inst.banned && inst.quota > 0) {
+        // ignore down status of main instance
+        if ((inst.status === 'up' || inst.endpoint === MAIN_INSTANCE) && !inst.banned && inst.quota > 0) {
             p = inst.quota;
             if (inst.quota > 0) {
                 hasQuota = true;
@@ -110,7 +111,7 @@ function genFilename(videoId, serverFilename) {
 }
 
 function tryFixStreamUrl(url, instance) {
-    if (instance.endpoint === 'api.cobalt.tools') {
+    if (instance.endpoint === MAIN_INSTANCE) {
         return url;
     }
     var wrongHosts = ['https://api.cobalt.tools/', 'https://co.wuk.sh/', 'http://localhost:9000/']
