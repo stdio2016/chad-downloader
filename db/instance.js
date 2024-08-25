@@ -72,7 +72,7 @@ async function setInstanceQuota(endpoint, quota) {
     });
 }
 
-async function useInstance(endpoint) {
+async function useInstance(endpoint, nextRetry) {
     var col = (await db).collection('instance');
     return await col.updateOne({
         endpoint: endpoint,
@@ -80,7 +80,7 @@ async function useInstance(endpoint) {
     }, {
         $set: {
             update_time: new Date(),
-            next_retry: new Date(),
+            next_retry: nextRetry,
         },
         $inc: {
             quota: -1,

@@ -1,6 +1,6 @@
 var axios = require('axios').default;
 const { AxiosError } = require('axios');
-const { USER_AGENT, INSTANCE_API, DAILY_QUOTA, RETRY_AFTER_MS, WAIT_MAX_MS, WAIT_MIN_MS } = require('../constants');
+const { USER_AGENT, INSTANCE_API, DAILY_QUOTA, RETRY_AFTER_MIN_MS, RETRY_AFTER_MAX_MS, WAIT_MAX_MS, WAIT_MIN_MS } = require('../constants');
 const { addOrUpdateInstance, listInstances, deleteInstance, setInstanceQuota, useInstance, incrInstanceSuccess, incrInstanceFail } = require('../db/instance');
 const { insertLog } = require('../db/log');
 const fs = require('fs');
@@ -67,7 +67,7 @@ async function randomInstance() {
             if (inst.quota > 0) {
                 hasQuota = true;
             }
-            if (inst.next_retry && now - inst.next_retry < RETRY_AFTER_MS) {
+            if (inst.next_retry && now - inst.next_retry < 0) {
                 p = 0;
             }
             if (p > 0) {
@@ -311,8 +311,9 @@ async function downloadLoop(count) {
             }
         }
         var endpoint = instance.endpoint;
-        await useInstance(endpoint);
         var startTime = new Date();
+        var retryAfterMs = RETRY_AFTER_MIN_MS + Math.random() * (RETRY_AFTER_MAX_MS - RETRY_AFTER_MIN_MS);
+        await useInstance(endpoint, new Date(+startTime + retryAfterMs));
         await updateStatus(videoId, 'downloading', { startTime: startTime });
         var result = await download(instance, videoId);
         switch (result.status) {

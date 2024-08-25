@@ -37,8 +37,13 @@ block content
         - status = '❌'
       if inst.banned
         - status += '⛔'
+      - trust = ''
+      if inst.raw.trust === 'safe'
+        - trust = '😀'
+      else if inst.raw.trust === 'not_safe'
+        - trust = '⚠️'
       tr
-        td= inst.endpoint
+        td= inst.endpoint + trust
         td(title=inst.status)= status
         td= inst.success
         td= inst.fail
